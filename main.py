@@ -11,9 +11,9 @@ app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Setup rate limiting: 60 requests per minute globally, 10 per minute on /create
+# Initialize rate limiting by explicitly naming the app argument.
 limiter = Limiter(
-    app,
+    app=app,
     key_func=get_remote_address,
     default_limits=["60 per minute"]
 )
@@ -64,7 +64,7 @@ def view_message(message_id):
         confirmation = "Secret Message displayed. (This message is now self-destructed. Please do not take screenshots!)"
         return render_template('view.html', message=message_content, disableScreenshot=True, confirmation=confirmation)
     
-    # GET: Display the password form for viewing the message
+    # GET: Display the password form
     return render_template('view.html', disableScreenshot=True)
 
 # Custom error handler for 404 errors
@@ -78,5 +78,4 @@ def server_error(e):
     return render_template('500.html'), 500
 
 if __name__ == '__main__':
-    # Render uses port binding automatically; here we bind to port 10000
     app.run(host="0.0.0.0", port=10000, debug=True)
