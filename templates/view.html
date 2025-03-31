@@ -4,47 +4,57 @@
   <meta charset="UTF-8">
   <title>View Self-Destruct Message</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Animate.css for fade-in effect -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
-  <style>
-    /* Disable text selection to discourage screenshots */
-    body {
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
-    }
-  </style>
   <script>
-    // Disable right-click to discourage screenshots
     document.addEventListener('contextmenu', event => event.preventDefault());
+
+    function startTimer(duration) {
+        let timer = duration, minutes, seconds;
+        const display = document.getElementById('timer');
+        setInterval(function () {
+            minutes = Math.floor(timer / 60);
+            seconds = timer % 60;
+            display.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            if (--timer < 0) {
+                display.textContent = "Message expired!";
+            }
+        }, 1000);
+    }
+
+    window.onload = function () {
+        const remainingTime = parseInt("{{ remaining_time|default(0) }}");
+        if (remainingTime > 0) {
+            startTimer(remainingTime);
+        }
+    };
   </script>
 </head>
-<body class="container mt-5 animate__animated animate__fadeIn">
+<body class="container mt-5">
+
   {% if error %}
     <div class="alert alert-danger" role="alert">{{ error }}</div>
   {% elif message %}
     <div class="alert alert-info" role="alert">
       <strong>Secret Message:</strong> {{ message }}
     </div>
-    {% if file_name and message_id %}
+    <p>Message will expire in: <span id="timer"></span></p>
+
+    {% if attachment %}
       <div class="alert alert-success" role="alert">
-        <p><strong>File Attachment:</strong> {{ file_name }}</p>
-        <a href="{{ url_for('download_file', message_id=message_id) }}" class="btn btn-primary">Download File</a>
+        <p><strong>File Attachment:</strong> {{ attachment.filename }}</p>
+        <a href="{{ url_for('download_attachment', message_id=message_id, password=password) }}" class="btn btn-primary">Download File</a>
       </div>
     {% endif %}
+
   {% else %}
     <h2>Enter Password to View the Message</h2>
-  {% endif %}
-
-  {% if not message and not error %}
-    <form method="post" aria-label="View Message Form">
+    <form method="post">
       <div class="mb-3">
         <label for="password" class="form-label">Password</label>
-        <input type="password" class="form-control" name="password" placeholder="Enter Password" required aria-required="true">
+        <input type="password" class="form-control" name="password" required>
       </div>
       <button type="submit" class="btn btn-primary">View Message</button>
     </form>
   {% endif %}
+
 </body>
 </html>
