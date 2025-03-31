@@ -2,3 +2,4 @@ Flask
 gunicorn
 Flask-Limiter
 MarkupSafe
+cryptography
