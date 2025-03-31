@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Self-Destruct Message - Create</title>
+  <script>
+    async function createMessage() {
+      const message = document.getElementById('message').value;
+      const password = document.getElementById('password').value;
+      const response = await fetch('https://self-destruct-message.onrender.com/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, password })
+      });
+      const data = await response.json();
+      if(data.link) {
+        document.getElementById('result').innerHTML = `<p>Share this link: <a href="${data.link}" target="_blank">${data.link}</a></p>`;
+      } else {
+        document.getElementById('result').innerHTML = `<p>Error: ${data.error}</p>`;
+      }
+    }
+  </script>
+</head>
+<body>
+  <h2>Create a Self-Destruct Message</h2>
+  <textarea id="message" placeholder="Enter your secret message"></textarea><br>
+  <input type="password" id="password" placeholder="Enter a password"><br>
+  <button onclick="createMessage()">Create Message</button>
+  <div id="result"></div>
+</body>
+</html>
