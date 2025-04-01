@@ -99,11 +99,10 @@ def view_message(message_id):
 
     message_data = messages.get(message_id)
 
-    if 'viewed' in message_data and current_time - message_data['viewed'] > MAX_VIEW_DURATION:
-        messages.pop(message_id, None)
+    # Check expiration
+    if current_time - message_data["created_at"] > MAX_VIEW_DURATION:
+        messages.pop(message_id, None)  # Remove expired message
         return render_template('view.html', error="Message expired", disableScreenshot=True)
-
-    remaining_time = MAX_VIEW_DURATION - (current_time - message_data.get('created_at', current_time))
 
     if request.method == 'POST':
         password = request.form.get("password")
@@ -116,17 +115,15 @@ def view_message(message_id):
         except InvalidToken:
             return render_template('view.html', error="Incorrect password!", disableScreenshot=True)
 
-        if 'viewed' not in message_data:
-            message_data['viewed'] = current_time
+        # Mark as viewed and schedule deletion
+        message_data['viewed'] = current_time
+        messages.pop(message_id, None)  # Immediately remove after first view
 
         return render_template(
             'view.html',
             message=decrypted_message,
             attachment=message_data.get("attachment"),
-            disableScreenshot=True,
-            message_id=message_id,
-            password=password,
-            remaining_time=int(remaining_time)
+            disableScreenshot=True
         )
 
     return render_template('view.html', disableScreenshot=True)
@@ -144,8 +141,8 @@ def download_attachment(message_id):
 
     message_data = messages.get(message_id)
 
-    if 'viewed' not in message_data or current_time - message_data['viewed'] > MAX_VIEW_DURATION:
-        messages.pop(message_id, None)
+    if current_time - message_data["created_at"] > MAX_VIEW_DURATION:
+        messages.pop(message_id, None)  # Remove expired message
         return "Message expired", 404
 
     salt = base64.b64decode(message_data["salt"])
