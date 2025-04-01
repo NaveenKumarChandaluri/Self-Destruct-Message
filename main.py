@@ -115,9 +115,7 @@ def view_message(message_id):
         except InvalidToken:
             return render_template('view.html', error="Incorrect password!", disableScreenshot=True)
 
-        # Mark as viewed and schedule deletion
-        messages.pop(message_id, None)  # Remove after first view
-
+        # Do not pop the message immediately after viewing so it's still accessible for download
         return render_template(
             'view.html',
             message=decrypted_message,
