@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, send_file, url_for
+from flask import Flask, request, jsonify, render_template, send_file, url_for, redirect
 import uuid
 import logging
 import time
@@ -31,7 +31,7 @@ limiter = Limiter(
 # In-memory store for messages
 messages = {}
 
-# Maximum time (in seconds) that a viewed message remains accessible (1 minute)
+# Maximum time (in seconds) that a message remains accessible (1 minute)
 MAX_VIEW_DURATION = 60
 
 def derive_key(password: str, salt: bytes) -> bytes:
@@ -73,8 +73,8 @@ def create_message():
     msg_record = {
         "encrypted": encrypted_message,
         "salt": base64.b64encode(salt).decode('utf-8'),
-        "created_at": time.time(),
-        # We'll add 'viewed' later on a successful password submission.
+        "created_at": time.time()
+        # We'll add "viewed", "decrypted" and "password" keys later after the correct password is submitted.
     }
 
     if file:
@@ -94,26 +94,15 @@ def create_message():
 @app.route('/view/<message_id>', methods=['GET', 'POST'])
 def view_message(message_id):
     current_time = time.time()
-
-    # If message not found, or already viewed (which means the user reloaded the page)
     if message_id not in messages:
         return render_template('view.html', error="Message not found or already viewed", disableScreenshot=True)
-    
     message_data = messages.get(message_id)
-
-    # Expire the message if more than MAX_VIEW_DURATION seconds have passed since creation
-    if current_time - message_data.get('created_at', current_time) > MAX_VIEW_DURATION:
+    # Expire if too old
+    if current_time - message_data.get('created_at') > MAX_VIEW_DURATION:
         messages.pop(message_id, None)
         return render_template('view.html', error="Message expired", disableScreenshot=True)
 
-    # If this is a GET request and the message was already viewed, then expire it
-    if request.method == 'GET' and 'viewed' in message_data:
-        messages.pop(message_id, None)
-        return render_template('view.html', error="Message expired", disableScreenshot=True)
-
-    remaining_time = MAX_VIEW_DURATION - (current_time - message_data.get('created_at', current_time))
-
-    # Handle POST request when the user submits the password
+    # Handle POST: user submits password
     if request.method == 'POST':
         password = request.form.get("password")
         salt = base64.b64decode(message_data["salt"])
@@ -123,20 +112,45 @@ def view_message(message_id):
             decrypted_message = f.decrypt(message_data["encrypted"]).decode()
         except InvalidToken:
             return render_template('view.html', error="Incorrect password!", disableScreenshot=True)
-        # Mark as viewed now, so that subsequent reloads will fail
+        # Mark as viewed and store decrypted message and password for download link
         message_data['viewed'] = current_time
-        # Render page with decrypted message and download link
-        return render_template(
-            'view.html',
-            message=decrypted_message,
-            attachment=message_data.get("attachment"),
-            disableScreenshot=True,
-            message_id=message_id,
-            password=password,
-            remaining_time=int(remaining_time)
-        )
-    # For a plain GET with no password submission (initial view), show the password form
+        message_data['decrypted'] = decrypted_message
+        message_data['password'] = password
+        # Redirect to display route with a flag indicating a fresh display
+        return redirect(url_for('display_message', message_id=message_id, fresh=1))
+    
+    # For a GET request on /view/<message_id> (i.e. initial load before password submission)
+    # Show the password form.
     return render_template('view.html', disableScreenshot=True)
+
+@app.route('/display/<message_id>', methods=['GET'])
+def display_message(message_id):
+    current_time = time.time()
+    if message_id not in messages:
+        return render_template('view.html', error="Message not found or already viewed", disableScreenshot=True)
+    message_data = messages.get(message_id)
+    # Expire if too old
+    if current_time - message_data.get('created_at') > MAX_VIEW_DURATION:
+        messages.pop(message_id, None)
+        return render_template('view.html', error="Message expired", disableScreenshot=True)
+    # If the 'fresh' query parameter is present, this is the first display after password submission.
+    # Otherwise, if user refreshes the page (i.e. URL without fresh=1), then expire the message.
+    if request.args.get('fresh') != '1':
+        messages.pop(message_id, None)
+        return render_template('view.html', error="Message expired", disableScreenshot=True)
+    
+    remaining_time = MAX_VIEW_DURATION - (current_time - message_data.get('created_at'))
+    # Render the page showing the decrypted message and download link.
+    # The download link will be generated using the stored password.
+    return render_template(
+        'view.html',
+        message=message_data.get('decrypted'),
+        attachment=message_data.get("attachment"),
+        disableScreenshot=True,
+        message_id=message_id,
+        password=message_data.get('password'),
+        remaining_time=int(remaining_time)
+    )
 
 @app.route('/download/<message_id>', methods=['GET'])
 def download_attachment(message_id):
@@ -147,14 +161,12 @@ def download_attachment(message_id):
     if message_id not in messages:
         return "Message not found or expired", 404
     message_data = messages.get(message_id)
-    # Expire if the message is older than MAX_VIEW_DURATION
-    if current_time - message_data.get('created_at', current_time) > MAX_VIEW_DURATION:
+    if current_time - message_data.get('created_at') > MAX_VIEW_DURATION:
         messages.pop(message_id, None)
         return "Message expired", 404
-    # Allow download only if the message was viewed (i.e. password was submitted) 
+    # Only allow download if the message has been viewed (i.e. 'viewed' key exists)
     if 'viewed' not in message_data:
         return "Message not viewed yet", 403
-
     salt = base64.b64decode(message_data["salt"])
     key = derive_key(password, salt)
     f = Fernet(key)
@@ -166,8 +178,7 @@ def download_attachment(message_id):
         decrypted_file_data = f.decrypt(encrypted_data)
     except InvalidToken:
         return "Incorrect password", 403
-
-    # After a successful download, remove the message so that further attempts fail.
+    # After a successful download, remove the message so further access fails.
     messages.pop(message_id, None)
     return send_file(io.BytesIO(decrypted_file_data), download_name=attachment["filename"], as_attachment=True)
 
