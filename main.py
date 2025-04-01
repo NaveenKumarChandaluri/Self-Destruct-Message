@@ -93,7 +93,7 @@ def create_message():
 @app.route('/view/<message_id>', methods=['GET', 'POST'])
 def view_message(message_id):
     current_time = time.time()
-    
+
     if message_id not in messages:
         return render_template('view.html', error="Message not found or already viewed", disableScreenshot=True)
 
@@ -116,17 +116,19 @@ def view_message(message_id):
             return render_template('view.html', error="Incorrect password!", disableScreenshot=True)
 
         # Mark as viewed and schedule deletion
-        message_data['viewed'] = current_time
-        messages.pop(message_id, None)  # Immediately remove after first view
+        messages.pop(message_id, None)  # Remove after first view
 
         return render_template(
             'view.html',
             message=decrypted_message,
             attachment=message_data.get("attachment"),
+            message_id=message_id,  # Ensure message_id is passed
+            password=password,  # Pass password for download
             disableScreenshot=True
         )
 
     return render_template('view.html', disableScreenshot=True)
+
 
 @app.route('/download/<message_id>', methods=['GET'])
 def download_attachment(message_id):
