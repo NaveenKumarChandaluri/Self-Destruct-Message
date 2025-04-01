@@ -44,9 +44,11 @@ def derive_key(password: str, salt: bytes) -> bytes:
     )
     return base64.urlsafe_b64encode(kdf.derive(password.encode()))
 
+
 @app.route('/')
 def home():
     return render_template('index.html')
+
 
 @app.route('/create', methods=['POST'])
 @limiter.limit("10 per minute")
@@ -91,6 +93,7 @@ def create_message():
     link = f"{request.host_url}view/{message_id}"
     return jsonify({"link": link})
 
+
 @app.route('/view/<message_id>', methods=['GET', 'POST'])
 def view_message(message_id):
     current_time = time.time()
@@ -101,7 +104,7 @@ def view_message(message_id):
     message_data = messages.get(message_id)
 
     # If the message has expired after 1 minute, show the error
-    if current_time - message_data.get('created_at', current_time) > MAX_VIEW_DURATION:
+    if current_time - message_data.get('created_at', current_time) > MAX_VIEW_DURATION or 'viewed' in message_data:
         messages.pop(message_id, None)
         return render_template('view.html', error="Message expired", disableScreenshot=True)
 
@@ -122,6 +125,9 @@ def view_message(message_id):
         if 'viewed' not in message_data:
             message_data['viewed'] = current_time
 
+        # Expire the message immediately after viewing it
+        messages[message_id]['expired'] = True
+
         return render_template(
             'view.html',
             message=decrypted_message,
@@ -133,6 +139,7 @@ def view_message(message_id):
         )
 
     return render_template('view.html', disableScreenshot=True)
+
 
 @app.route('/download/<message_id>', methods=['GET'])
 def download_attachment(message_id):
@@ -148,7 +155,7 @@ def download_attachment(message_id):
     message_data = messages.get(message_id)
 
     # If the message has expired after 1 minute, show the error
-    if current_time - message_data.get('created_at', current_time) > MAX_VIEW_DURATION:
+    if current_time - message_data.get('created_at', current_time) > MAX_VIEW_DURATION or 'expired' in message_data:
         messages.pop(message_id, None)
         return "Message expired", 404
 
@@ -170,6 +177,7 @@ def download_attachment(message_id):
     messages[message_id]['expired'] = True
 
     return send_file(io.BytesIO(decrypted_file_data), download_name=attachment["filename"], as_attachment=True)
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=10000, debug=True)
