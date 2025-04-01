@@ -30,15 +30,6 @@
             startTimer(remainingTime);
         }
     };
-
-    function copyToClipboard() {
-        const copyText = document.getElementById("fileLink").href;
-        navigator.clipboard.writeText(copyText).then(() => {
-            const copyBtn = document.getElementById("copyBtn");
-            copyBtn.textContent = "Link Copied!";
-            setTimeout(() => copyBtn.textContent = "Copy Link", 2000);
-        });
-    }
   </script>
 </head>
 <body class="container mt-5">
@@ -56,10 +47,8 @@
         <div class="alert alert-success" role="alert">
           <p><strong>File Attachment:</strong> {{ attachment.filename }}</p>
           <a id="fileLink" href="{{ url_for('download_attachment', message_id=message_id) }}?password={{ password }}" class="btn btn-primary">Download File</a>
-          <button id="copyBtn" class="btn btn-secondary" onclick="copyToClipboard()">Copy Link</button>
         </div>
       {% endif %}
-
 
     {% else %}
       <h2>Enter Password to View the Message</h2>
