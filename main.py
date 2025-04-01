@@ -100,14 +100,10 @@ def view_message(message_id):
 
     message_data = messages.get(message_id)
 
-    # If the message has already been marked as expired, show the error
-    if message_data.get('expired', False):
-        return render_template('view.html', error="Message expired or already viewed", disableScreenshot=True)
-
-    # If the message has been viewed already, expire it immediately and return error
-    if 'viewed' in message_data:
-        messages[message_id]['expired'] = True  # Expire the message link
-        return render_template('view.html', error="Message expired or already viewed", disableScreenshot=True)
+    # If the message has expired after 1 minute, show the error
+    if current_time - message_data.get('created_at', current_time) > MAX_VIEW_DURATION:
+        messages.pop(message_id, None)
+        return render_template('view.html', error="Message expired", disableScreenshot=True)
 
     remaining_time = MAX_VIEW_DURATION - (current_time - message_data.get('created_at', current_time))
 
@@ -122,10 +118,9 @@ def view_message(message_id):
         except InvalidToken:
             return render_template('view.html', error="Incorrect password!", disableScreenshot=True)
 
-        # Mark as viewed and expire the link immediately after the first view
+        # Mark as viewed after successful decryption
         if 'viewed' not in message_data:
             message_data['viewed'] = current_time
-            messages[message_id]['expired'] = True  # Expire the message after first view
 
         return render_template(
             'view.html',
@@ -152,8 +147,9 @@ def download_attachment(message_id):
 
     message_data = messages.get(message_id)
 
-    # If the message is expired, show an error
-    if message_data.get('expired', False):
+    # If the message has expired after 1 minute, show the error
+    if current_time - message_data.get('created_at', current_time) > MAX_VIEW_DURATION:
+        messages.pop(message_id, None)
         return "Message expired", 404
 
     salt = base64.b64decode(message_data["salt"])
@@ -169,6 +165,9 @@ def download_attachment(message_id):
         decrypted_file_data = f.decrypt(encrypted_data)
     except InvalidToken:
         return "Incorrect password", 403
+
+    # After download, expire the message and attachment
+    messages[message_id]['expired'] = True
 
     return send_file(io.BytesIO(decrypted_file_data), download_name=attachment["filename"], as_attachment=True)
 
