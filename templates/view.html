@@ -10,12 +10,16 @@
     function startTimer(duration) {
         let timer = duration, minutes, seconds;
         const display = document.getElementById('timer');
-        setInterval(function () {
+        const messageContainer = document.getElementById('message-container');
+
+        let interval = setInterval(function () {
             minutes = Math.floor(timer / 60);
             seconds = timer % 60;
             display.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
             if (--timer < 0) {
+                clearInterval(interval);
                 display.textContent = "Message expired!";
+                messageContainer.innerHTML = '<div class="alert alert-danger">This message has been deleted.</div>';
             }
         }, 1000);
     }
@@ -30,31 +34,33 @@
 </head>
 <body class="container mt-5">
 
-  {% if error %}
-    <div class="alert alert-danger" role="alert">{{ error }}</div>
-  {% elif message %}
-    <div class="alert alert-info" role="alert">
-      <strong>Secret Message:</strong> {{ message }}
-    </div>
-    <p>Message will expire in: <span id="timer"></span></p>
-
-    {% if attachment %}
-      <div class="alert alert-success" role="alert">
-        <p><strong>File Attachment:</strong> {{ attachment.filename }}</p>
-        <a href="{{ url_for('download_attachment', message_id=message_id, password=password) }}" class="btn btn-primary">Download File</a>
+  <div id="message-container">
+    {% if error %}
+      <div class="alert alert-danger" role="alert">{{ error }}</div>
+    {% elif message %}
+      <div class="alert alert-info" role="alert">
+        <strong>Secret Message:</strong> {{ message }}
       </div>
+      <p>Message will expire in: <span id="timer"></span></p>
+
+      {% if attachment %}
+        <div class="alert alert-success" role="alert">
+          <p><strong>File Attachment:</strong> {{ attachment.filename }}</p>
+          <a href="{{ url_for('download_attachment', message_id=message_id, password=password) }}" class="btn btn-primary">Download File</a>
+        </div>
+      {% endif %}
+
+    {% else %}
+      <h2>Enter Password to View the Message</h2>
+      <form method="post">
+        <div class="mb-3">
+          <label for="password" class="form-label">Password</label>
+          <input type="password" class="form-control" name="password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">View Message</button>
+      </form>
     {% endif %}
-
-  {% else %}
-    <h2>Enter Password to View the Message</h2>
-    <form method="post">
-      <div class="mb-3">
-        <label for="password" class="form-label">Password</label>
-        <input type="password" class="form-control" name="password" required>
-      </div>
-      <button type="submit" class="btn btn-primary">View Message</button>
-    </form>
-  {% endif %}
+  </div>
 
 </body>
 </html>
